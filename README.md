@@ -24,7 +24,7 @@ import pickle
 import torch
 import torch.nn as nn
 from transformers import T5Tokenizer
-from model.transformer_model import Transformer
+from text2midi.transformer_model import Transformer
 from huggingface_hub import hf_hub_download
 
 repo_id = "amaai-lab/text2midi"
@@ -75,6 +75,12 @@ generated_midi.dump_midi("output.mid")
 ```
 
 ## Installation
+
+As a uv project (e.g. a workspace member), the inference dependencies are declared in `pyproject.toml`; training dependencies are in the `train` extra:
+```bash
+uv sync                  # inference
+uv sync --extra train    # training
+```
 
 If you have CUDA supported machine:
 ```bash
@@ -156,7 +162,7 @@ accelerate launch --multi_gpu --num_processes=4 train_accelerate.py --config ../
 ## Inference
 We support inference on CUDA, MPS and cpu. Please make sure you have pip installed the correct requirement file (requirments.txt for CUDA, requirements-mac.txt for MPS)
 ```bash
-python model/transformer_model.py --caption <your intended descriptions>
+python src/text2midi/transformer_model.py --caption <your intended descriptions>
 ```
 
 

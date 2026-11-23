@@ -16,8 +16,8 @@ from evaluate import load as load_metric
 import sys
 import argparse
 import jsonlines
-from data_loader_remi import Text2MusicDataset
-from transformer_model import Transformer
+from text2midi.data_loader_remi import Text2MusicDataset
+from text2midi.transformer_model import Transformer
 from torch.utils.data import DataLoader
 
 

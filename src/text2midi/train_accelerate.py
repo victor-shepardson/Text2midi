@@ -14,8 +14,8 @@ from tqdm import tqdm
 import torch
 from accelerate import DistributedDataParallelKwargs, Accelerator
 from accelerate.logging import get_logger
-from data_loader_remi import Text2MusicDataset
-from transformer_model import Transformer
+from text2midi.data_loader_remi import Text2MusicDataset
+from text2midi.transformer_model import Transformer
 from torch.utils.data import DataLoader
 import logging
 

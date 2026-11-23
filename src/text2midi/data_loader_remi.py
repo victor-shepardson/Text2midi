@@ -1,6 +1,3 @@
-from aria.data.midi import MidiDict
-# from aria.tokenizer import AbsTokenizer
-# aria_tokenizer = AbsTokenizer()
 import yaml
 import jsonlines
 import glob
@@ -18,12 +15,10 @@ from torch.nn import functional as F
 from transformers import T5Tokenizer
 from spacy.lang.en import English
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 
 class Text2MusicDataset(Dataset):
-    def __init__(self, configs, captions, aria_tokenizer, mode="train", shuffle = False):
+    def __init__(self, configs, captions, remi_tokenizer, mode="train", shuffle = False):
         self.mode = mode
         self.captions = captions
         if shuffle:
@@ -35,11 +30,12 @@ class Text2MusicDataset(Dataset):
         # Artifact folder
         self.artifact_folder = configs['artifact_folder']
         # Load encoder tokenizer json file dictionary
-        tokenizer_filepath = os.path.join(self.artifact_folder, "vocab.pkl")
-        self.aria_tokenizer = aria_tokenizer #AbsTokenizer()
+        # tokenizer_filepath = os.path.join(self.artifact_folder, "vocab.pkl")
         # Load the pickled tokenizer dictionary
-        with open(tokenizer_filepath, 'rb') as f:
-            self.tokenizer = pickle.load(f)
+        # with open(tokenizer_filepath, 'rb') as f:
+        #     self.tokenizer = pickle.load(f)
+
+        self.remi_tokenizer = remi_tokenizer
 
         # Load the sentencizer
         self.nlp = English()
@@ -60,16 +56,14 @@ class Text2MusicDataset(Dataset):
     def __getitem__(self, idx):
         caption = self.captions[idx]['caption']
         midi_filepath = os.path.join(self.dataset_path, self.captions[idx]['location'])
-
+        # print(f'midi filepath: {midi_filepath}')
         # Read the MIDI file
-        midi = MidiDict.from_midi(midi_filepath)
-        if len(midi.note_msgs) == 0:
-            aria_tokenized_midi = ["<SS>", "<E>"]        
+        tokens = self.remi_tokenizer(midi_filepath)
+
+        if len(tokens.ids) == 0:
+            tokenized_midi = [self.remi_tokenizer["BOS_None"], self.remi_tokenizer["EOS_None"]]
         else:
-            # Get the tokenized MIDI file
-            aria_tokenized_midi = self.aria_tokenizer.tokenize(midi)
-            # Add the start token
-            aria_tokenized_midi = ["<SS>"] + aria_tokenized_midi
+            tokenized_midi = [self.remi_tokenizer["BOS_None"]] + tokens.ids + [self.remi_tokenizer["EOS_None"]]
 
         # Drop a random number of sentences from the caption
         do_drop = random.random() > 0.5
@@ -91,14 +85,11 @@ class Text2MusicDataset(Dataset):
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']
 
-        # Tokenize the midi file
-        tokenized_midi = [self.tokenizer[token] for token in aria_tokenized_midi if token in self.tokenizer]
-
         # Convert the tokenized MIDI file to a tensor and pad it to the maximum sequence length
         if len(tokenized_midi) < self.decoder_max_sequence_length:
             labels = F.pad(torch.tensor(tokenized_midi), (0, self.decoder_max_sequence_length - len(tokenized_midi))).to(torch.int64)
         else:
-            labels = torch.tensor(tokenized_midi[-self.decoder_max_sequence_length:]).to(torch.int64)
+            labels = torch.tensor(tokenized_midi[0:self.decoder_max_sequence_length]).to(torch.int64)
 
         return input_ids, attention_mask, labels
         
@@ -108,17 +99,26 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default=os.path.normpath("../configs/config.yaml"),
                         help="Path to the config file")
     args = parser.parse_args()
+    
+    tokenizer_filepath = "../artifacts/vocab_remi.pkl"
+    # Load the tokenizer dictionary
+    with open(tokenizer_filepath, "rb") as f:
+        tokenizer = pickle.load(f)
+    bos_token_number = tokenizer["PAD_None"]
+    print(f"bos_token_number: {bos_token_number}")
 
     # Load config file
     with open(args.config, 'r') as f:
         configs = yaml.safe_load(f)
-
     caption_dataset_path = configs['raw_data']['caption_dataset_path']
     # Load the caption dataset
     with jsonlines.open(caption_dataset_path) as reader:
         captions = list(reader)
-
+        
     # Load the dataset
-    dataset = Text2MusicDataset(configs, captions, mode="train", shuffle = True)
+    dataset = Text2MusicDataset(configs, captions, remi_tokenizer=tokenizer, mode="train", shuffle = True)
     a,b,c = dataset[0]
-    print(c.shape)
+    print(type(a))
+    generated_midi = tokenizer.decode(c)
+    print(type(generated_midi))
+    generated_midi.dump_midi("decoded_midi.mid")
